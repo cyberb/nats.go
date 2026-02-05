@@ -1843,6 +1843,7 @@ func (nc *Conn) pickServer() error {
 }
 
 const tlsScheme = "tls"
+const unixScheme = "unix"
 
 // Create the server pool using the options given.
 // We will place a Url option first, followed by any
@@ -2175,15 +2176,22 @@ func (nc *Conn) createConn() (err error) {
 	hosts := []string{}
 	u := nc.current.url
 
-	if !nc.Opts.SkipHostLookup && net.ParseIP(u.Hostname()) == nil {
-		addrs, _ := net.LookupHost(u.Hostname())
-		for _, addr := range addrs {
-			hosts = append(hosts, net.JoinHostPort(addr, u.Port()))
+	// Check for Unix socket scheme
+	isUnix := u.Scheme == unixScheme
+	if isUnix {
+		// For Unix sockets, use the path as the address
+		hosts = append(hosts, u.Path)
+	} else {
+		if !nc.Opts.SkipHostLookup && net.ParseIP(u.Hostname()) == nil {
+			addrs, _ := net.LookupHost(u.Hostname())
+			for _, addr := range addrs {
+				hosts = append(hosts, net.JoinHostPort(addr, u.Port()))
+			}
 		}
-	}
-	// Fall back to what we were given.
-	if len(hosts) == 0 {
-		hosts = append(hosts, u.Host)
+		// Fall back to what we were given.
+		if len(hosts) == 0 {
+			hosts = append(hosts, u.Host)
+		}
 	}
 
 	// CustomDialer takes precedence. If not set, use Opts.Dialer which
@@ -2202,8 +2210,12 @@ func (nc *Conn) createConn() (err error) {
 			hosts[i], hosts[j] = hosts[j], hosts[i]
 		})
 	}
+	network := "tcp"
+	if isUnix {
+		network = "unix"
+	}
 	for _, host := range hosts {
-		nc.conn, err = dialer.Dial("tcp", host)
+		nc.conn, err = dialer.Dial(network, host)
 		if err == nil {
 			break
 		}
