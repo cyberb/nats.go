@@ -1932,7 +1932,7 @@ func (nc *Conn) addURLToPool(sURL string, implicit, saveTLSName bool) error {
 		if err != nil {
 			return err
 		}
-		if u.Port() != "" {
+		if u.Port() != "" || u.Scheme == unixScheme {
 			break
 		}
 		// In case given URL is of the form "localhost:", just add
